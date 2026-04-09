@@ -108,10 +108,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Avg kakovost
     const kScores = rows
-      .map(r => r.kakovost ? r.kakovost.filter(v => v !== null && v >= 0) : [])
+      .map(r => r.kakovost ? r.kakovost.filter(v => v !== null && v > 1) : [])
       .flat();
     const avgK = kScores.length
-      ? Math.round(kScores.reduce((a,b)=>a+b,0) / kScores.length / 3 * 100)
+      ? Math.round(kScores.reduce((a,b)=>a+b,0) / kScores.length / 5 * 100)
       : null;
     document.getElementById('kpi-kakovost').textContent = avgK !== null ? `${avgK}%` : '—';
 
@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     rows.forEach(r => {
       if (!r.kakovost) return;
       r.kakovost.forEach((v, i) => {
-        if (v !== null && v >= 0) {
+        if (v !== null && v > 1) {
           sums[i] += v;
           counts[i]++;
         }
@@ -219,7 +219,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       'Shema linij', 'Zvočni signal', 'Svetlobni napis', 'Spremembe VR',
       'Varna vožnja', 'Izstop', 'Ime postaje', 'Čistoča', 'Napovednik', 'Predpisi',
     ];
-    const values = sums.map((s, i) => counts[i] ? +(s / counts[i] / 3 * 100).toFixed(1) : null);
+    const values = sums.map((s, i) => counts[i] ? +(s / counts[i] / 5 * 100).toFixed(1) : null);
 
     const colors = values.map(v =>
       v === null ? '#3a3a5c' : v >= 70 ? '#3a8c5c' : v >= 40 ? '#e8734a' : '#d6304a'
@@ -309,8 +309,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         ? r.postanki.filter(p => p.zamuda_arr !== null && !p.skip).map(p => Number(p.zamuda_arr))
         : [];
       const avgDelay = delays.length ? (delays.reduce((a,b)=>a+b,0)/delays.length).toFixed(1) : '—';
-      const kScores = r.kakovost ? r.kakovost.filter(v => v !== null && v >= 0) : [];
-      const kPct = kScores.length ? Math.round(kScores.reduce((a,b)=>a+b,0)/kScores.length/3*100) : null;
+      const kScores = r.kakovost ? r.kakovost.filter(v => v !== null && v > 1) : [];
+      const kPct = kScores.length ? Math.round(kScores.reduce((a,b)=>a+b,0)/kScores.length/5*100) : null;
       const maxP = r.postanki ? Math.max(...r.postanki.map(p => (p.sedeci||0)+(p.stojeci||0)), 0) : 0;
       const zased = r.kapaciteta ? Math.round(maxP/r.kapaciteta*100) : '—';
       const vstopili = r.skupaj_vstopili != null
