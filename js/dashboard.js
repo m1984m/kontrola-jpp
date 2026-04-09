@@ -160,11 +160,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── CHART HELPERS ────────────────────────────────────────────
   const DAYS_SI = ['ned', 'pon', 'tor', 'sre', 'čet', 'pet', 'sob'];
   function fmtLabel(dateStr) {
-    // "2026-04-10" → "tor, 10.4."
-    if (!dateStr || dateStr.length < 10) return dateStr;
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const dow = new Date(y, m - 1, d).getDay();
-    return `${DAYS_SI[dow]}, ${d}.${m}.`;
+    // Handles both "2026-04-10" and full JS Date strings
+    if (!dateStr) return '?';
+    let d;
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+      const [y, m, day] = dateStr.split('-').map(Number);
+      d = new Date(y, m - 1, day);
+    } else {
+      d = new Date(dateStr);
+    }
+    if (isNaN(d)) return dateStr;
+    return `${DAYS_SI[d.getDay()]}, ${d.getDate()}.${d.getMonth() + 1}.`;
   }
 
   // ── CHARTS ───────────────────────────────────────────────────
