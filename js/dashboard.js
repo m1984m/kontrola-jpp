@@ -322,7 +322,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         plugins: { legend: { display: false } },
         scales: {
           x: { ticks: { color: '#9a94ac', callback: v => `${v}%` }, grid: { color: 'rgba(255,255,255,0.05)' }, max: 100 },
-          y: { ticks: { color: '#e8e4f0', font: { size: 11 } }, grid: { display: false } },
+          y: { ticks: { color: ctx2 => colors[ctx2.index] ?? '#e8e4f0', font: { size: 11 } }, grid: { display: false } },
         },
       },
     });
@@ -428,7 +428,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         plugins: { legend: { display: false } },
         scales: {
           x: { ticks: { color: '#9a94ac', callback: v => `${v}%` }, grid: { color: 'rgba(255,255,255,0.05)' }, min: 0, max: 100 },
-          y: { ticks: { color: '#e8e4f0', font: { size: 11 } }, grid: { display: false } },
+          y: { ticks: { color: ctx2 => colors[ctx2.index] ?? '#e8e4f0', font: { size: 11 } }, grid: { display: false } },
         },
       },
     });
