@@ -1,3 +1,9 @@
 .omc/
 *.pyc
 __pycache__/
+gtfs_raw/
+gtfs.zip
+gtfs_preprocess.py
+apps_script.js
+DESIGN.md
+*.xlsx

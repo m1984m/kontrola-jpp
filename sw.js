@@ -1,10 +1,12 @@
-const CACHE = 'jpp-v1';
+const CACHE = 'jpp-v2';
 const STATIC = [
-  '/', '/index.html', '/app.html', '/dashboard.html',
-  '/css/style.css',
-  '/js/app.js', '/js/gtfs.js', '/js/sheets.js', '/js/kontrola.js', '/js/dashboard.js',
-  '/manifest.json',
-  '/data/routes.json', '/data/trips.json', '/data/stops.json',
+  './', './index.html', './app.html', './dashboard.html',
+  './css/style.css',
+  './js/app.js', './js/gtfs.js', './js/sheets.js', './js/kontrola.js',
+  './js/dashboard.js', './js/vozila.js',
+  './manifest.json',
+  './data/routes.json', './data/trips.json', './data/stops.json',
+  './icon-192.png', './icon-512.png',
 ];
 
 self.addEventListener('install', e => {
@@ -30,7 +32,7 @@ self.addEventListener('fetch', e => {
       if (cached) return cached;
       return fetch(e.request).then(resp => {
         // Cache data files on first load
-        if (url.pathname.startsWith('/data/')) {
+        if (url.pathname.includes('/data/')) {
           caches.open(CACHE).then(c => c.put(e.request, resp.clone()));
         }
         return resp;
