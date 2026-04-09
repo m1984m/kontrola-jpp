@@ -94,7 +94,7 @@ function logout() {
 // ── Offline queue ─────────────────────────────────────────────────
 function enqueue(payload) {
   const q = getQueue();
-  q.push({ id: Date.now(), payload, ts: new Date().toISOString() });
+  q.push({ id: Date.now(), payload, ts: new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Ljubljana' }).replace(' ', 'T') });
   localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
 }
 
@@ -109,13 +109,12 @@ function dequeue(id) {
 
 // ── Utilities ─────────────────────────────────────────────────────
 function nowTime() {
-  const n = new Date();
-  return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}`;
+  return new Date().toLocaleTimeString('sl-SI', { timeZone: 'Europe/Ljubljana', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 function nowDate() {
-  const n = new Date();
-  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+  const d = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Ljubljana' }); // en-CA → YYYY-MM-DD
+  return d;
 }
 
 function timeDiffMin(t1, t2) {
