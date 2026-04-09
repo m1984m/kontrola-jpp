@@ -157,6 +157,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('kpi-vstopili').textContent = totalVstopili || '—';
   }
 
+  // ── CHART HELPERS ────────────────────────────────────────────
+  const DAYS_SI = ['ned', 'pon', 'tor', 'sre', 'čet', 'pet', 'sob'];
+  function fmtLabel(dateStr) {
+    // "2026-04-10" → "tor, 10.4."
+    if (!dateStr || dateStr.length < 10) return dateStr;
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dow = new Date(y, m - 1, d).getDay();
+    return `${DAYS_SI[dow]}, ${d}.${m}.`;
+  }
+
   // ── CHARTS ───────────────────────────────────────────────────
   function renderCharts(rows) {
     renderDelayChart(rows);
@@ -184,8 +194,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     });
 
-    const labels = Object.keys(byDate).sort();
-    const values = labels.map(d => {
+    const keys = Object.keys(byDate).sort();
+    const labels = keys.map(fmtLabel);
+    const values = keys.map(d => {
       const arr = byDate[d];
       return +(arr.reduce((a,b)=>a+b,0) / arr.length).toFixed(2);
     });
@@ -233,7 +244,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (r.dostopnost) { const s = avgScoreAll(r.dostopnost); if (s !== null) d.dos.push(s); }
     });
 
-    const labels = Object.keys(byDate).sort();
+    const keys2 = Object.keys(byDate).sort();
+    const labels = keys2.map(fmtLabel);
     const avg = arr => arr.length ? +(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1) : null;
 
     charts['quality-trend'] = new Chart(ctx, {
@@ -241,10 +253,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       data: {
         labels,
         datasets: [
-          { label: 'Kakovost', data: labels.map(d => avg(byDate[d].kak)), borderColor: '#3a8c5c', borderWidth: 2, tension: 0.3, pointRadius: 3 },
-          { label: 'Voznik', data: labels.map(d => avg(byDate[d].voz)), borderColor: '#6c8ebf', borderWidth: 2, tension: 0.3, pointRadius: 3 },
-          { label: 'Vožnja', data: labels.map(d => avg(byDate[d].vzn)), borderColor: '#e8734a', borderWidth: 2, tension: 0.3, pointRadius: 3 },
-          { label: 'Dostopnost', data: labels.map(d => avg(byDate[d].dos)), borderColor: '#9b59b6', borderWidth: 2, tension: 0.3, pointRadius: 3 },
+          { label: 'Kakovost', data: keys2.map(d => avg(byDate[d].kak)), borderColor: '#3a8c5c', borderWidth: 2, tension: 0.3, pointRadius: 3 },
+          { label: 'Voznik', data: keys2.map(d => avg(byDate[d].voz)), borderColor: '#6c8ebf', borderWidth: 2, tension: 0.3, pointRadius: 3 },
+          { label: 'Vožnja', data: keys2.map(d => avg(byDate[d].vzn)), borderColor: '#e8734a', borderWidth: 2, tension: 0.3, pointRadius: 3 },
+          { label: 'Dostopnost', data: keys2.map(d => avg(byDate[d].dos)), borderColor: '#9b59b6', borderWidth: 2, tension: 0.3, pointRadius: 3 },
         ],
       },
       options: {
