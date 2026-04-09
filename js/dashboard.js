@@ -17,6 +17,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   let charts = {};
   let activeFilter = { linija: '', kontrolor: '', from: '' };
 
+  // ── HELPERS ───────────────────────────────────────────────────
+  function avgScore(arr) {
+    const valid = arr.filter(v => v !== null && v > 1);
+    return valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length / 5 * 100 : null;
+  }
+
+  function avgScoreAll(arr) {
+    const valid = arr.filter(v => v !== null);
+    return valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length / 5 * 100 : null;
+  }
+
   // ── LOAD DATA ───────────────────────────────────────────────
   async function loadData(fromDate) {
     document.getElementById('loading-indicator').style.display = 'flex';
@@ -106,16 +117,27 @@ document.addEventListener('DOMContentLoaded', async () => {
       : '—';
     document.getElementById('kpi-delay').textContent = avgDelay !== '—' ? `${avgDelay} min` : '—';
 
-    // Avg kakovost
-    const kScores = rows
-      .map(r => r.kakovost ? r.kakovost.filter(v => v !== null && v > 1) : [])
-      .flat();
-    const avgK = kScores.length
-      ? Math.round(kScores.reduce((a,b)=>a+b,0) / kScores.length / 5 * 100)
-      : null;
+    // Kakovost (1.3)
+    const kScores = rows.map(r => r.kakovost ? r.kakovost.filter(v => v !== null && v > 1) : []).flat();
+    const avgK = kScores.length ? Math.round(kScores.reduce((a,b)=>a+b,0) / kScores.length / 5 * 100) : null;
     document.getElementById('kpi-kakovost').textContent = avgK !== null ? `${avgK}%` : '—';
 
-    // Avg zasedenost
+    // Voznik (1.4)
+    const vnScores = rows.map(r => r.voznik ? r.voznik.filter(v => v !== null) : []).flat();
+    const avgVn = vnScores.length ? Math.round(vnScores.reduce((a,b)=>a+b,0) / vnScores.length / 5 * 100) : null;
+    document.getElementById('kpi-voznik').textContent = avgVn !== null ? `${avgVn}%` : '—';
+
+    // Vožnja (1.5)
+    const vzScores = rows.map(r => r.vozilo ? r.vozilo.filter(v => v !== null) : []).flat();
+    const avgVz = vzScores.length ? Math.round(vzScores.reduce((a,b)=>a+b,0) / vzScores.length / 5 * 100) : null;
+    document.getElementById('kpi-voznja').textContent = avgVz !== null ? `${avgVz}%` : '—';
+
+    // Dostopnost (1.6)
+    const dsScores = rows.map(r => r.dostopnost ? r.dostopnost.filter(v => v !== null) : []).flat();
+    const avgDs = dsScores.length ? Math.round(dsScores.reduce((a,b)=>a+b,0) / dsScores.length / 5 * 100) : null;
+    document.getElementById('kpi-dostopnost').textContent = avgDs !== null ? `${avgDs}%` : '—';
+
+    // Zasedenost
     const zaseds = rows
       .map(r => {
         if (!r.postanki || !r.kapaciteta) return null;
@@ -123,12 +145,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return Math.round(max / r.kapaciteta * 100);
       })
       .filter(v => v !== null);
-    const avgZ = zaseds.length
-      ? Math.round(zaseds.reduce((a,b)=>a+b,0) / zaseds.length)
-      : null;
+    const avgZ = zaseds.length ? Math.round(zaseds.reduce((a,b)=>a+b,0) / zaseds.length) : null;
     document.getElementById('kpi-zased').textContent = avgZ !== null ? `${avgZ}%` : '—';
 
-    // Skupaj vstopili
+    // Vstopili
     const totalVstopili = rows.reduce((sum, r) => {
       if (r.skupaj_vstopili != null) return sum + Number(r.skupaj_vstopili);
       if (r.postanki) return sum + r.postanki.reduce((s, p) => s + (p.vstopili || 0), 0);
@@ -140,8 +160,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── CHARTS ───────────────────────────────────────────────────
   function renderCharts(rows) {
     renderDelayChart(rows);
+    renderQualityTrendChart(rows);
     renderKakovostChart(rows);
     renderLinijeSummary(rows);
+    renderVozilaChart(rows);
   }
 
   function destroyChart(id) {
@@ -152,7 +174,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     destroyChart('delay');
     const ctx = document.getElementById('chart-delay').getContext('2d');
 
-    // Group by date, average delay
     const byDate = {};
     rows.forEach(r => {
       if (!r.postanki) return;
@@ -197,11 +218,51 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // ── NEW: Quality trend over time ────────────────────────────
+  function renderQualityTrendChart(rows) {
+    destroyChart('quality-trend');
+    const ctx = document.getElementById('chart-quality-trend').getContext('2d');
+
+    const byDate = {};
+    rows.forEach(r => {
+      if (!byDate[r.datum]) byDate[r.datum] = { kak: [], voz: [], vzn: [], dos: [] };
+      const d = byDate[r.datum];
+      if (r.kakovost) { const s = avgScore(r.kakovost); if (s !== null) d.kak.push(s); }
+      if (r.voznik) { const s = avgScoreAll(r.voznik); if (s !== null) d.voz.push(s); }
+      if (r.vozilo) { const s = avgScoreAll(r.vozilo); if (s !== null) d.vzn.push(s); }
+      if (r.dostopnost) { const s = avgScoreAll(r.dostopnost); if (s !== null) d.dos.push(s); }
+    });
+
+    const labels = Object.keys(byDate).sort();
+    const avg = arr => arr.length ? +(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1) : null;
+
+    charts['quality-trend'] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Kakovost', data: labels.map(d => avg(byDate[d].kak)), borderColor: '#3a8c5c', borderWidth: 2, tension: 0.3, pointRadius: 3 },
+          { label: 'Voznik', data: labels.map(d => avg(byDate[d].voz)), borderColor: '#6c8ebf', borderWidth: 2, tension: 0.3, pointRadius: 3 },
+          { label: 'Vožnja', data: labels.map(d => avg(byDate[d].vzn)), borderColor: '#e8734a', borderWidth: 2, tension: 0.3, pointRadius: 3 },
+          { label: 'Dostopnost', data: labels.map(d => avg(byDate[d].dos)), borderColor: '#9b59b6', borderWidth: 2, tension: 0.3, pointRadius: 3 },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { color: '#9a94ac', boxWidth: 12, font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { color: '#9a94ac', maxRotation: 45 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+          y: { ticks: { color: '#9a94ac', callback: v => `${v}%` }, grid: { color: 'rgba(255,255,255,0.05)' }, min: 0, max: 100 },
+        },
+      },
+    });
+  }
+
   function renderKakovostChart(rows) {
     destroyChart('kakovost');
     const ctx = document.getElementById('chart-kakovost').getContext('2d');
 
-    // Average score per checklist item
     const sums = new Array(14).fill(0);
     const counts = new Array(14).fill(0);
     rows.forEach(r => {
@@ -242,41 +303,49 @@ document.addEventListener('DOMContentLoaded', async () => {
         indexAxis: 'y',
         plugins: { legend: { display: false } },
         scales: {
-          x: {
-            ticks: { color: '#9a94ac', callback: v => `${v}%` },
-            grid: { color: 'rgba(255,255,255,0.05)' },
-            max: 100,
-          },
+          x: { ticks: { color: '#9a94ac', callback: v => `${v}%` }, grid: { color: 'rgba(255,255,255,0.05)' }, max: 100 },
           y: { ticks: { color: '#e8e4f0', font: { size: 11 } }, grid: { display: false } },
         },
       },
     });
   }
 
+  // ── NEW: Route quality summary ──────────────────────────────
   function renderLinijeSummary(rows) {
     destroyChart('linije');
     const ctx = document.getElementById('chart-linije').getContext('2d');
 
-    // Count per linija
-    const counts = {};
+    const byRoute = {};
     rows.forEach(r => {
-      counts[r.linija] = (counts[r.linija] || 0) + 1;
+      if (!byRoute[r.linija]) byRoute[r.linija] = { scores: [], count: 0 };
+      const entry = byRoute[r.linija];
+      entry.count++;
+      // Compute overall quality per kontrola (avg of all 4 dimensions)
+      const dims = [];
+      if (r.kakovost) { const s = avgScore(r.kakovost); if (s !== null) dims.push(s); }
+      if (r.voznik) { const s = avgScoreAll(r.voznik); if (s !== null) dims.push(s); }
+      if (r.vozilo) { const s = avgScoreAll(r.vozilo); if (s !== null) dims.push(s); }
+      if (r.dostopnost) { const s = avgScoreAll(r.dostopnost); if (s !== null) dims.push(s); }
+      if (dims.length) entry.scores.push(dims.reduce((a,b)=>a+b,0)/dims.length);
     });
 
-    const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
-    const labels = sorted.map(e => e[0]);
-    const values = sorted.map(e => e[1]);
+    const sorted = Object.entries(byRoute).sort((a,b) => {
+      const aAvg = a[1].scores.length ? a[1].scores.reduce((x,y)=>x+y,0)/a[1].scores.length : 0;
+      const bAvg = b[1].scores.length ? b[1].scores.reduce((x,y)=>x+y,0)/b[1].scores.length : 0;
+      return bAvg - aAvg;
+    });
+    const labels = sorted.map(e => `${e[0]} (${e[1].count}x)`);
+    const values = sorted.map(e => e[1].scores.length ? +(e[1].scores.reduce((a,b)=>a+b,0)/e[1].scores.length).toFixed(1) : 0);
+    const colors = values.map(v => v >= 70 ? '#3a8c5c' : v >= 40 ? '#e8734a' : '#d6304a');
 
     charts['linije'] = new Chart(ctx, {
       type: 'bar',
       data: {
         labels,
         datasets: [{
-          label: 'Kontrole',
+          label: 'Skupna ocena (%)',
           data: values,
-          backgroundColor: 'rgba(214,48,74,0.7)',
-          borderColor: '#d6304a',
-          borderWidth: 1,
+          backgroundColor: colors,
           borderRadius: 4,
         }],
       },
@@ -286,7 +355,62 @@ document.addEventListener('DOMContentLoaded', async () => {
         plugins: { legend: { display: false } },
         scales: {
           x: { ticks: { color: '#9a94ac' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-          y: { ticks: { color: '#9a94ac' }, grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true },
+          y: { ticks: { color: '#9a94ac', callback: v => `${v}%` }, grid: { color: 'rgba(255,255,255,0.05)' }, min: 0, max: 100 },
+        },
+      },
+    });
+  }
+
+  // ── NEW: Worst vehicles chart ───────────────────────────────
+  function renderVozilaChart(rows) {
+    destroyChart('vozila');
+    const ctx = document.getElementById('chart-vozila').getContext('2d');
+
+    const byVehicle = {};
+    rows.forEach(r => {
+      if (!r.reg_st) return;
+      if (!byVehicle[r.reg_st]) byVehicle[r.reg_st] = { scores: [], count: 0 };
+      const entry = byVehicle[r.reg_st];
+      entry.count++;
+      const dims = [];
+      if (r.vozilo) { const s = avgScoreAll(r.vozilo); if (s !== null) dims.push(s); }
+      if (r.dostopnost) { const s = avgScoreAll(r.dostopnost); if (s !== null) dims.push(s); }
+      if (dims.length) entry.scores.push(dims.reduce((a,b)=>a+b,0)/dims.length);
+    });
+
+    // Sort by worst score, take top 10
+    const sorted = Object.entries(byVehicle)
+      .filter(e => e[1].scores.length > 0)
+      .sort((a,b) => {
+        const aAvg = a[1].scores.reduce((x,y)=>x+y,0)/a[1].scores.length;
+        const bAvg = b[1].scores.reduce((x,y)=>x+y,0)/b[1].scores.length;
+        return aAvg - bAvg;
+      })
+      .slice(0, 10);
+
+    const labels = sorted.map(e => e[0]);
+    const values = sorted.map(e => +(e[1].scores.reduce((a,b)=>a+b,0)/e[1].scores.length).toFixed(1));
+    const colors = values.map(v => v >= 70 ? '#3a8c5c' : v >= 40 ? '#e8734a' : '#d6304a');
+
+    charts['vozila'] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Ocena vozila (%)',
+          data: values,
+          backgroundColor: colors,
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#9a94ac', callback: v => `${v}%` }, grid: { color: 'rgba(255,255,255,0.05)' }, min: 0, max: 100 },
+          y: { ticks: { color: '#e8e4f0', font: { size: 11 } }, grid: { display: false } },
         },
       },
     });
@@ -299,7 +423,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (!rows.length) {
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="7" style="text-align:center;color:var(--text-secondary);padding:32px">Ni podatkov</td>';
+      tr.innerHTML = '<td colspan="8" style="text-align:center;color:var(--text-secondary);padding:32px">Ni podatkov</td>';
       tbody.appendChild(tr);
       return;
     }
@@ -337,7 +461,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // ── DETAIL MODAL ─────────────────────────────────────────────
+  // ── DETAIL MODAL (enhanced with all scores) ─────────────────
+  const KAKOVOST_ITEMS = [
+    'Oznaka linije', 'Plačilo voznine', 'Prepovedi', 'Posebne potrebe',
+    'Shema linij', 'Zvočni signal', 'Svetlobni napis', 'Spremembe VR',
+    'Varna vožnja', 'Izstop', 'Ime postaje', 'Čistoča', 'Napovednik', 'Predpisi',
+  ];
+  const VOZNIK_ITEMS = ['Prijaznost', 'Uniforma', 'Komunikacija', 'Profesionalnost', 'Mirna vožnja'];
+  const VOZILO_ITEMS = ['Zaviranje / Pospeševanje', 'Tehnično stanje vozila'];
+  const DOSTOPNOST_ITEMS = ['Kneeling', 'Vstop enostaven', 'Invalidska mesta', 'Izhod označen'];
+
+  function scoreLabel(v) {
+    if (v === null || v === undefined) return '<span style="color:var(--text-secondary)">—</span>';
+    const color = v >= 4 ? 'var(--on-time)' : v >= 3 ? 'var(--warning)' : 'var(--danger)';
+    return `<span style="color:${color};font-weight:600">${v}/5</span>`;
+  }
+
+  function renderScoreTable(title, items, values) {
+    if (!values || values.every(v => v === null)) return '';
+    const rows = items.map((name, i) => `<tr><td>${name}</td><td style="text-align:right">${scoreLabel(values[i])}</td></tr>`).join('');
+    return `<div class="detail-section"><h4>${title}</h4><table class="detail-table"><tbody>${rows}</tbody></table></div>`;
+  }
+
   function showDetail(r) {
     const modal = document.getElementById('detail-modal');
     const content = document.getElementById('detail-content');
@@ -353,6 +498,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         <p>${r.datum} &nbsp;|&nbsp; ${r.kontrolor} &nbsp;|&nbsp; ${r.reg_st || '—'}</p>
         <p>${r.ura_zacetek || '—'} → ${r.ura_konec || '—'} &nbsp;|&nbsp; Zamuda: ${avgDelay} min</p>
       </div>
+
+      ${renderScoreTable('1.3 — Kakovost informacij', KAKOVOST_ITEMS, r.kakovost)}
+      ${renderScoreTable('1.4 — Ocena voznika', VOZNIK_ITEMS, r.voznik)}
+      ${renderScoreTable('1.5 — Ocena vožnje', VOZILO_ITEMS, r.vozilo)}
+      ${renderScoreTable('1.6 — Dostopnost', DOSTOPNOST_ITEMS, r.dostopnost)}
 
       <div class="detail-section">
         <h4>Postanki</h4>
@@ -386,6 +536,48 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (e.target === document.getElementById('detail-modal')) {
       document.getElementById('detail-modal').classList.remove('open');
     }
+  });
+
+  // ── EXPORT CSV ──────────────────────────────────────────────
+  document.getElementById('btn-export').addEventListener('click', () => {
+    if (!filteredData.length) { toast('Ni podatkov za izvoz'); return; }
+
+    const headers = ['datum','linija','smer','kontrolor','reg_st','zamuda_min',
+      'kakovost_%','voznik_%','voznja_%','dostopnost_%','zasedenost_%','vstopili','opombe'];
+
+    const csvRows = [headers.join(';')];
+    filteredData.forEach(r => {
+      const delays = r.postanki
+        ? r.postanki.filter(p => p.zamuda_arr !== null && !p.skip).map(p => Number(p.zamuda_arr))
+        : [];
+      const avgD = delays.length ? (delays.reduce((a,b)=>a+b,0)/delays.length).toFixed(1) : '';
+      const kPct = avgScore(r.kakovost || []);
+      const vnPct = avgScoreAll(r.voznik || []);
+      const vzPct = avgScoreAll(r.vozilo || []);
+      const dsPct = avgScoreAll(r.dostopnost || []);
+      const maxP = r.postanki ? Math.max(...r.postanki.map(p => (p.sedeci||0)+(p.stojeci||0)), 0) : 0;
+      const zased = r.kapaciteta ? Math.round(maxP/r.kapaciteta*100) : '';
+      const vstop = r.skupaj_vstopili != null ? r.skupaj_vstopili
+        : (r.postanki ? r.postanki.reduce((s,p)=>s+(p.vstopili||0),0) : '');
+
+      csvRows.push([
+        r.datum, r.linija, r.smer, r.kontrolor, r.reg_st, avgD,
+        kPct !== null ? kPct.toFixed(0) : '', vnPct !== null ? vnPct.toFixed(0) : '',
+        vzPct !== null ? vzPct.toFixed(0) : '', dsPct !== null ? dsPct.toFixed(0) : '',
+        zased, vstop,
+        `"${(r.opombe || '').replace(/"/g, '""')}"`,
+      ].join(';'));
+    });
+
+    const bom = '\uFEFF';
+    const blob = new Blob([bom + csvRows.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `kontrola_jpp_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('CSV izvožen');
   });
 
   // ── INIT ─────────────────────────────────────────────────────

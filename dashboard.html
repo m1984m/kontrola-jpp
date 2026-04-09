@@ -334,7 +334,22 @@
       <div class="kpi-card">
         <div class="kpi-label">Kakovost informacij</div>
         <div class="kpi-val" id="kpi-kakovost">—</div>
-        <div class="kpi-unit">povprečna ocena</div>
+        <div class="kpi-unit">obrazec 1.3</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Ocena voznika</div>
+        <div class="kpi-val" id="kpi-voznik">—</div>
+        <div class="kpi-unit">obrazec 1.4</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Ocena vožnje</div>
+        <div class="kpi-val" id="kpi-voznja">—</div>
+        <div class="kpi-unit">obrazec 1.5</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Dostopnost</div>
+        <div class="kpi-val" id="kpi-dostopnost">—</div>
+        <div class="kpi-unit">obrazec 1.6</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Zasedenost</div>
@@ -357,9 +372,9 @@
         </div>
       </div>
       <div class="chart-card">
-        <div class="chart-title">Kontrole po linijah</div>
+        <div class="chart-title">Trend kakovosti</div>
         <div class="chart-wrap">
-          <canvas id="chart-linije"></canvas>
+          <canvas id="chart-quality-trend"></canvas>
         </div>
       </div>
     </div>
@@ -374,9 +389,28 @@
       </div>
     </div>
 
-    <!-- TABLE -->
+    <!-- CHARTS ROW 3 -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Povprečna ocena po linijah</div>
+        <div class="chart-wrap">
+          <canvas id="chart-linije"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Najslabša vozila</div>
+        <div class="chart-wrap">
+          <canvas id="chart-vozila"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABLE + EXPORT -->
     <div class="table-card">
-      <div class="table-title">Zadnje kontrole</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div class="table-title" style="margin-bottom:0">Zadnje kontrole</div>
+        <button class="btn-refresh" id="btn-export">⬇ Izvozi CSV</button>
+      </div>
       <table>
         <thead>
           <tr>

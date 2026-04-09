@@ -239,13 +239,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Resume if already in progress
   if (STATE.stops && STATE.stops.length > 0 && STATE.setup.ura_zacetek) {
-    // Ask if user wants to continue
-    if (confirm('Imaš nedokončano kontrolo. Nadaljuješ?')) {
+    showConfirmModal('Imaš nedokončano kontrolo. Nadaljuješ?', () => {
       renderStopScreen();
       showScreen('screen-stop');
-    } else {
+    }, () => {
       clearState();
-    }
+    });
+  }
+
+  // ── CONFIRM MODAL (replaces browser confirm) ──────────────
+  function showConfirmModal(message, onYes, onNo) {
+    const overlay = document.getElementById('confirm-modal');
+    document.getElementById('confirm-msg').textContent = message;
+    overlay.classList.add('open');
+    document.getElementById('confirm-yes').onclick = () => {
+      overlay.classList.remove('open');
+      if (onYes) onYes();
+    };
+    document.getElementById('confirm-no').onclick = () => {
+      overlay.classList.remove('open');
+      if (onNo) onNo();
+    };
   }
 
   // ── STOP SCREEN ───────────────────────────────────────────────
@@ -356,13 +370,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('counters-area').style.display = visible ? 'block' : 'none';
   }
 
-  // PRISPEL button
+  // PRISPEL button — tap to mark, re-tap to clear
   document.getElementById('btn-arrived').addEventListener('click', () => {
     const data = STATE.stop_data[STATE.current_stop];
-    if (data.arrived_at) return;
+    if (data.arrived_at) {
+      // Re-tap: allow correction
+      showConfirmModal('Ponastavim čas prihoda?', () => {
+        data.arrived_at = null;
+        saveState();
+        renderStopScreen();
+      });
+      return;
+    }
     data.arrived_at = APP.nowTime();
 
-    // Always recalculate carryover from last actually-arrived stop
+    // Carryover from last arrived stop
     if (STATE.current_stop > 0) {
       let lastIdx = -1;
       for (let i = STATE.current_stop - 1; i >= 0; i--) {
@@ -370,15 +392,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       if (lastIdx >= 0) {
         const prev = STATE.stop_data[lastIdx];
+        const seats = Math.round(STATE.setup.kapaciteta * 0.6);
         let sedeci  = prev.sedeci;
         let stojeci = prev.stojeci;
         for (let i = 0; i < (prev.vstopili || 0); i++) {
-          if (sedeci < 15) sedeci++;
+          if (sedeci < seats) sedeci++;
           else stojeci++;
         }
         for (let i = 0; i < (prev.izstopili || 0); i++) {
-          if (sedeci < 15) sedeci = Math.max(0, sedeci - 1);
-          else stojeci = Math.max(0, stojeci - 1);
+          if (stojeci > 0) stojeci--;
+          else sedeci = Math.max(0, sedeci - 1);
         }
         data.sedeci  = sedeci;
         data.stojeci = stojeci;
@@ -543,8 +566,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Checklist navigation
+  // Checklist navigation with validation
+  function countUnset(arr) { return arr.filter(v => v === null).length; }
+
   document.getElementById('btn-next-kakovost').addEventListener('click', () => {
+    const n = countUnset(STATE.kakovost);
+    if (n > 0) {
+      toast(`⚠ ${n} neocenjenih elementov — premakni vse drsnike`);
+      return;
+    }
     showScreen('screen-checklist-d');
   });
   document.getElementById('btn-back-kakovost').addEventListener('click', () => {
@@ -553,12 +583,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     showScreen('screen-stop');
   });
   document.getElementById('btn-next-voznik').addEventListener('click', () => {
+    const n = countUnset(STATE.voznik);
+    if (n > 0) {
+      toast(`⚠ ${n} neocenjenih elementov — premakni vse drsnike`);
+      return;
+    }
     showScreen('screen-checklist-v');
   });
   document.getElementById('btn-back-voznik').addEventListener('click', () => {
     showScreen('screen-checklist-q');
   });
   document.getElementById('btn-next-vozilo').addEventListener('click', () => {
+    const nv = countUnset(STATE.vozilo);
+    const nd = countUnset(STATE.dostopnost);
+    if (nv + nd > 0) {
+      toast(`⚠ ${nv + nd} neocenjenih elementov — premakni vse drsnike`);
+      return;
+    }
     renderReview();
     showScreen('screen-review');
   });
