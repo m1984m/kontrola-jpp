@@ -113,8 +113,8 @@ function handleSave(payload) {
 
   // ── Kontrole sheet ──────────────────────────────────────────
   let sheetK = ss.getSheetByName('Kontrole');
-  if (!sheetK) {
-    sheetK = ss.insertSheet('Kontrole');
+  if (!sheetK) sheetK = ss.insertSheet('Kontrole');
+  if (sheetK.getLastRow() === 0) {
     sheetK.appendRow([
       'id', 'datum', 'kontrolor', 'linija', 'smer', 'trip_id',
       'reg_st', 'kapaciteta', 'tip_dneva', 'vreme',
@@ -161,8 +161,8 @@ function handleSave(payload) {
   const postanki = payload.postanki || [];
   if (postanki.length > 0) {
     let sheetP = ss.getSheetByName('Postanki');
-    if (!sheetP) {
-      sheetP = ss.insertSheet('Postanki');
+    if (!sheetP) sheetP = ss.insertSheet('Postanki');
+    if (sheetP.getLastRow() === 0) {
       sheetP.appendRow([
         'kontrola_id', 'datum', 'linija',
         'zap_st', 'stop_id', 'postaja',
