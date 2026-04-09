@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kontrola JPP</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="dark">
+
+  <!-- APP HEADER -->
+  <header class="app-header">
+    <div class="app-header-left">
+      <div class="header-badge">JPP</div>
+      <div class="header-meta">
+        <div class="header-line" id="stop-header-line">Kontrola JPP</div>
+        <div class="header-sub">Sektor za komunalo in promet &nbsp;·&nbsp; <span id="kontrolor-name"></span></div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" onclick="window.location.href='dashboard.html'" title="Dashboard">
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </button>
+      <button class="icon-btn" onclick="APP.logout()" title="Odjava">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ════════════════════════════════════════════════════════════
+       SCREEN: SETUP
+  ════════════════════════════════════════════════════════════ -->
+  <div id="screen-setup" class="screen active">
+    <div class="screen-content">
+      <div class="section-label">Nova kontrola</div>
+
+      <div class="form-block">
+        <label class="field-label">Linija</label>
+        <select id="sel-route" class="field-select">
+          <option value="">Nalagam linije...</option>
+        </select>
+      </div>
+
+      <div class="form-block">
+        <label class="field-label">Smer</label>
+        <select id="sel-dir" class="field-select">
+          <option value="">Najprej izberi linijo</option>
+        </select>
+      </div>
+
+      <div class="form-block">
+        <label class="field-label">Vožnja (po voznem redu)</label>
+        <select id="sel-trip" class="field-select">
+          <option value="">Najprej izberi smer</option>
+        </select>
+      </div>
+
+      <div class="form-block">
+        <label class="field-label">Registrska številka vozila</label>
+        <select id="inp-reg" class="field-select">
+          <option value="">Izberi vozilo...</option>
+        </select>
+        <div id="kap-info" class="field-hint" style="display:none"></div>
+      </div>
+
+      <div class="form-block">
+        <label class="field-label">Tip dneva</label>
+        <div class="pill-row">
+          <button class="pill" data-tip="D">Delovnik</button>
+          <button class="pill" data-tip="S">Sobota</button>
+          <button class="pill" data-tip="N">Nedelja</button>
+          <button class="pill" data-tip="P">Praznik</button>
+        </div>
+      </div>
+
+      <div class="form-block">
+        <label class="field-label">Vreme</label>
+        <div class="pill-row">
+          <button class="pill" data-vreme="soncno">☀ Sončno</button>
+          <button class="pill" data-vreme="oblacno">⛅ Oblačno</button>
+          <button class="pill" data-vreme="dezevno">🌧 Deževno</button>
+          <button class="pill" data-vreme="snezno">❄ Snežno</button>
+        </div>
+      </div>
+
+      <div class="bottom-actions">
+        <button class="btn-primary" id="btn-start">Začni kontrolo ▶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════
+       SCREEN: LIVE STOP
+  ════════════════════════════════════════════════════════════ -->
+  <div id="screen-stop" class="screen">
+    <div class="screen-content">
+
+      <!-- Progress bar -->
+      <div class="progress-bar">
+        <div class="progress-track" id="progress-track"></div>
+        <div class="progress-label" id="stop-counter-text">Postaja 1 / ?</div>
+      </div>
+
+      <!-- Stop card -->
+      <div class="stop-card">
+        <div class="stop-name" id="stop-name">—</div>
+        <div class="delay-badge pending" id="delay-badge">⏱ Čakam...</div>
+
+        <div class="time-grid">
+          <div class="time-col">
+            <div class="time-label">Načrtovan prihod</div>
+            <div class="time-value" id="stop-plan-arr">—</div>
+          </div>
+          <div class="time-col">
+            <div class="time-label">Dejanski prihod</div>
+            <div class="time-value placeholder" id="stop-actual-arr">—</div>
+          </div>
+          <div class="time-col">
+            <div class="time-label">Odhod (VR)</div>
+            <div class="time-value" id="stop-plan-dep">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PRISPEL mega button -->
+      <button class="btn-arrived" id="btn-arrived">▶ PRISPEL</button>
+
+      <!-- Counters -->
+      <div id="counters-area" style="display:none">
+        <div class="section-label">Potniki na avtobusu</div>
+
+        <div class="counter-group counter-group-2x2">
+          <div class="counter-item">
+            <div class="counter-label">Sedeči</div>
+            <div class="counter-controls">
+              <button class="counter-btn minus" id="btn-sedeci-minus">−</button>
+              <div class="counter-value" id="cnt-sedeci">0</div>
+              <button class="counter-btn plus" id="btn-sedeci-plus">+</button>
+            </div>
+          </div>
+
+          <div class="counter-item">
+            <div class="counter-label">Stoječi</div>
+            <div class="counter-controls">
+              <button class="counter-btn minus" id="btn-stojeci-minus">−</button>
+              <div class="counter-value" id="cnt-stojeci">0</div>
+              <button class="counter-btn plus" id="btn-stojeci-plus">+</button>
+            </div>
+          </div>
+
+          <div class="counter-item counter-item-vstopili">
+            <div class="counter-label">▲ Vstopili</div>
+            <div class="counter-controls">
+              <button class="counter-btn minus" id="btn-vstopili-minus">−</button>
+              <div class="counter-value" id="cnt-vstopili">0</div>
+              <button class="counter-btn plus" id="btn-vstopili-plus">+</button>
+            </div>
+          </div>
+
+          <div class="counter-item counter-item-izstopili">
+            <div class="counter-label">▼ Izstopili</div>
+            <div class="counter-controls">
+              <button class="counter-btn minus" id="btn-izstopili-minus">−</button>
+              <div class="counter-value" id="cnt-izstopili">0</div>
+              <button class="counter-btn plus" id="btn-izstopili-plus">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Skip -->
+      <button class="btn-skip" id="skip-toggle-btn">✕ Preskoči to postajo</button>
+      <input type="checkbox" id="skip-toggle" style="display:none">
+
+      <!-- Navigation -->
+      <div class="bottom-actions two-col">
+        <button class="btn-secondary" id="btn-back-stop">◀ Nazaj</button>
+        <button class="btn-next" id="btn-next-stop">Naprej ▶▶</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════
+       SCREEN: CHECKLIST 1.3 — Kakovost informacij
+  ════════════════════════════════════════════════════════════ -->
+  <div id="screen-checklist-q" class="screen">
+    <div class="screen-content">
+      <div class="section-label">1.3 — Kakovost informacij</div>
+      <p class="section-desc">5 = Dobro &nbsp;·&nbsp; 4 = Zadovoljivo &nbsp;·&nbsp; 3 = Nezadovoljivo &nbsp;·&nbsp; 2 = Slabo &nbsp;·&nbsp; 1 = Ne obstaja</p>
+
+      <div class="checklist-header">
+        <div></div>
+        <div class="ch-label">D</div>
+        <div class="ch-label">Z</div>
+        <div class="ch-label">N</div>
+        <div class="ch-label">S</div>
+        <div class="ch-label">O</div>
+      </div>
+
+      <div id="kakovost-list"></div>
+
+      <div class="bottom-actions two-col">
+        <button class="btn-secondary" id="btn-back-kakovost">◀ Nazaj</button>
+        <button class="btn-primary" id="btn-next-kakovost">Naprej ▶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════
+       SCREEN: CHECKLIST 1.4 — Ocena voznika
+  ════════════════════════════════════════════════════════════ -->
+  <div id="screen-checklist-d" class="screen">
+    <div class="screen-content">
+      <div class="section-label">1.4 — Ocena voznika</div>
+      <p class="section-desc">5 = Dobro &nbsp;·&nbsp; 4 = Zadovoljivo &nbsp;·&nbsp; 3 = Nezadovoljivo &nbsp;·&nbsp; 2 = Slabo &nbsp;·&nbsp; 1 = Zelo slabo</p>
+
+      <div id="ddne-voznik"></div>
+
+      <div class="bottom-actions two-col">
+        <button class="btn-secondary" id="btn-back-voznik">◀ Nazaj</button>
+        <button class="btn-primary" id="btn-next-voznik">Naprej ▶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════
+       SCREEN: CHECKLIST 1.5 + 1.6 — Vozilo + Dostopnost
+  ════════════════════════════════════════════════════════════ -->
+  <div id="screen-checklist-v" class="screen">
+    <div class="screen-content">
+      <div class="section-label">1.5 — Ocena vožnje</div>
+      <p class="section-desc">5 = Dobro &nbsp;·&nbsp; 4 = Zadovoljivo &nbsp;·&nbsp; 3 = Nezadovoljivo &nbsp;·&nbsp; 2 = Slabo &nbsp;·&nbsp; 1 = Zelo slabo</p>
+      <div id="slider-vozilo"></div>
+
+      <div class="section-label" style="margin-top:24px">1.6 — Dostopnost</div>
+      <p class="section-desc">5 = Dobro &nbsp;·&nbsp; 4 = Zadovoljivo &nbsp;·&nbsp; 3 = Nezadovoljivo &nbsp;·&nbsp; 2 = Slabo &nbsp;·&nbsp; 1 = Zelo slabo</p>
+      <div id="ddne-dostopnost"></div>
+
+      <div class="section-label" style="margin-top:24px">Opombe</div>
+      <textarea id="inp-opombe" class="field-textarea"
+        placeholder="Vnesite opombe." rows="3"></textarea>
+
+      <div class="bottom-actions two-col">
+        <button class="btn-secondary" id="btn-back-vozilo">◀ Nazaj</button>
+        <button class="btn-primary" id="btn-next-vozilo">Pregled ▶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════
+       SCREEN: REVIEW + SUBMIT
+  ════════════════════════════════════════════════════════════ -->
+  <div id="screen-review" class="screen">
+    <div class="screen-content">
+      <div class="section-label">Pregled kontrole</div>
+
+      <div class="review-card">
+        <div class="review-row"><span>Linija</span><strong id="rv-linija">—</strong></div>
+        <div class="review-row"><span>Datum</span><strong id="rv-datum">—</strong></div>
+        <div class="review-row"><span>Začetek</span><strong id="rv-zacetek">—</strong></div>
+        <div class="review-row"><span>Konec</span><strong id="rv-konec">—</strong></div>
+        <div class="review-row"><span>Vozilo</span><strong id="rv-reg">—</strong></div>
+        <div class="review-row"><span>Kapaciteta</span><strong id="rv-kap">—</strong></div>
+        <div class="review-row"><span>Vreme</span><strong id="rv-vreme">—</strong></div>
+        <div class="review-row"><span>Povp. zamuda</span><strong id="rv-zamuda">—</strong></div>
+        <div class="review-row"><span>Maks. potniki (zasedenost)</span><strong id="rv-zased">—</strong></div>
+        <div class="review-row"><span>Skupaj vstopili</span><strong id="rv-vstopili">—</strong></div>
+      </div>
+
+      <div class="score-section">
+        <div class="score-row">
+          <span>Kakovost informacij</span>
+          <strong id="rv-kakovost">—</strong>
+        </div>
+        <div class="score-bar-track">
+          <div class="score-bar-fill" id="rv-kakovost-bar" style="width:0%"></div>
+        </div>
+
+        <div class="score-row" style="margin-top:12px">
+          <span>Ocena voznika</span>
+          <strong id="rv-voznik">—</strong>
+        </div>
+        <div class="score-bar-track">
+          <div class="score-bar-fill" id="rv-voznik-bar" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div class="submit-warning" id="submit-warning"></div>
+
+      <div class="bottom-actions two-col">
+        <button class="btn-secondary" id="btn-back-review">◀ Nazaj</button>
+        <button class="btn-submit" id="btn-submit">✓ Potrdi in pošlji</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/app.js"></script>
+  <script src="js/gtfs.js"></script>
+  <script src="js/sheets.js"></script>
+  <script src="js/vozila.js"></script>
+  <script src="js/kontrola.js"></script>
+</body>
+</html>
