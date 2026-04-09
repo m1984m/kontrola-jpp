@@ -4,8 +4,10 @@
  */
 
 // ── Config ─────────────────────────────────────────────────────
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycby1J1-xKfLc1rWnRVW_aGeeK-7ep7286wv5P90fjUTUFd-LTSeGs-tbOCicPWXRTwyY/exec';
+
 const CFG = {
-  get sheetsUrl() { return localStorage.getItem('sheets_url') || ''; },
+  get sheetsUrl() { return localStorage.getItem('sheets_url') || SHEETS_URL; },
   set sheetsUrl(v) { localStorage.setItem('sheets_url', v); },
 };
 
