@@ -448,7 +448,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       r.postanki.forEach(p => {
         if (p.skip) return;
         const name = p.postaja;
-        const ord = typeof p.zap_st === 'number' ? p.zap_st : 999;
+        const ord = Number(p.zap_st) || 999;
         if (!stopMap[name]) stopMap[name] = { loads: [], minOrder: ord };
         stopMap[name].loads.push((p.sedeci || 0) + (p.stojeci || 0));
         stopMap[name].minOrder = Math.min(stopMap[name].minOrder, ord);
@@ -492,6 +492,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── B: OD HEATMAP ────────────────────────────────────────────
+
+  // Derive izstopili from passenger count changes if not recorded
+  function effectiveIzstopili(stops) {
+    const hasData = stops.some(p => (p.izstopili || 0) > 0);
+    if (hasData) return stops.map(p => p.izstopili || 0);
+    // Fallback: total[i-1] + vstopili[i] - total[i]
+    return stops.map((p, i) => {
+      if (i === 0) return 0;
+      const prev = stops[i - 1];
+      const totalPrev = (prev.sedeci || 0) + (prev.stojeci || 0);
+      const totalCurr = (p.sedeci || 0) + (p.stojeci || 0);
+      return Math.max(0, totalPrev + (p.vstopili || 0) - totalCurr);
+    });
+  }
+
   function renderODHeatmap(rows) {
     const wrap = document.getElementById('od-heatmap-wrap');
 
@@ -508,19 +523,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     rows.forEach(r => {
       if (!r.postanki) return;
       const stops = r.postanki.filter(p => !p.skip);
+      const izstopiliValues = effectiveIzstopili(stops);
+
       stops.forEach((p, i) => {
-        const ord = typeof p.zap_st === 'number' ? p.zap_st : i;
+        const ord = Number(p.zap_st) || i;
         if (!(p.postaja in stopOrder)) stopOrder[p.postaja] = ord;
         else stopOrder[p.postaja] = Math.min(stopOrder[p.postaja], ord);
 
         const vstopili = p.vstopili || 0;
         if (vstopili === 0) return;
-        const exitAfter = stops.slice(i + 1).reduce((sum, s) => sum + (s.izstopili || 0), 0);
+
+        const exitAfter = izstopiliValues.slice(i + 1).reduce((sum, v) => sum + v, 0);
         if (exitAfter === 0) return;
 
-        stops.slice(i + 1).forEach(dest => {
-          const izstopili = dest.izstopili || 0;
-          if (izstopili === 0) return;
+        stops.slice(i + 1).forEach((dest, j) => {
+          const izstopili = izstopiliValues[i + 1 + j];
+          if (!izstopili) return;
           if (!odMatrix[p.postaja]) odMatrix[p.postaja] = {};
           odMatrix[p.postaja][dest.postaja] =
             (odMatrix[p.postaja][dest.postaja] || 0) + vstopili * izstopili / exitAfter;
