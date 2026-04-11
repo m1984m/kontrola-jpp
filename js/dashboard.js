@@ -180,6 +180,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderKakovostChart(rows);
     renderLinijeSummary(rows);
     renderVozilaChart(rows);
+    renderLoadProfile(rows);
+    renderODHeatmap(rows);
   }
 
   function destroyChart(id) {
@@ -432,6 +434,168 @@ document.addEventListener('DOMContentLoaded', async () => {
         },
       },
     });
+  }
+
+  // ── A: LOAD PROFILE ─────────────────────────────────────────
+  function renderLoadProfile(rows) {
+    destroyChart('load-profile');
+    const ctx = document.getElementById('chart-load-profile').getContext('2d');
+
+    // Aggregate stop loads across all runs
+    const stopMap = {}; // name -> { loads: [], minOrder: number }
+    rows.forEach(r => {
+      if (!r.postanki) return;
+      r.postanki.forEach(p => {
+        if (p.skip) return;
+        const name = p.postaja;
+        const ord = typeof p.zap_st === 'number' ? p.zap_st : 999;
+        if (!stopMap[name]) stopMap[name] = { loads: [], minOrder: ord };
+        stopMap[name].loads.push((p.sedeci || 0) + (p.stojeci || 0));
+        stopMap[name].minOrder = Math.min(stopMap[name].minOrder, ord);
+      });
+    });
+
+    const stops = Object.entries(stopMap)
+      .sort((a, b) => a[1].minOrder - b[1].minOrder);
+
+    const labels = stops.map(([name]) => name);
+    const values = stops.map(([, d]) =>
+      +(d.loads.reduce((a, b) => a + b, 0) / d.loads.length).toFixed(1)
+    );
+    const maxVal = Math.max(...values, 1);
+    const colors = values.map(v => {
+      const r = v / maxVal;
+      return r > 0.7 ? '#d6304a' : r > 0.4 ? '#e8734a' : '#3a8c5c';
+    });
+
+    charts['load-profile'] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Povp. potniki',
+          data: values,
+          backgroundColor: colors,
+          borderRadius: 3,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#9a94ac', maxRotation: 60, font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+          y: { ticks: { color: '#9a94ac' }, grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true, title: { display: true, text: 'Potniki', color: '#9a94ac', font: { size: 11 } } },
+        },
+      },
+    });
+  }
+
+  // ── B: OD HEATMAP ────────────────────────────────────────────
+  function renderODHeatmap(rows) {
+    const wrap = document.getElementById('od-heatmap-wrap');
+
+    if (!rows.length) {
+      wrap.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;padding:20px">Ni podatkov</p>';
+      return;
+    }
+
+    // Build OD matrix: proportional assignment
+    // vstopili at stop i → distributed to later stops proportionally to their izstopili
+    const odMatrix = {};
+    const stopOrder = {};
+
+    rows.forEach(r => {
+      if (!r.postanki) return;
+      const stops = r.postanki.filter(p => !p.skip);
+      stops.forEach((p, i) => {
+        const ord = typeof p.zap_st === 'number' ? p.zap_st : i;
+        if (!(p.postaja in stopOrder)) stopOrder[p.postaja] = ord;
+        else stopOrder[p.postaja] = Math.min(stopOrder[p.postaja], ord);
+
+        const vstopili = p.vstopili || 0;
+        if (vstopili === 0) return;
+        const exitAfter = stops.slice(i + 1).reduce((sum, s) => sum + (s.izstopili || 0), 0);
+        if (exitAfter === 0) return;
+
+        stops.slice(i + 1).forEach(dest => {
+          const izstopili = dest.izstopili || 0;
+          if (izstopili === 0) return;
+          if (!odMatrix[p.postaja]) odMatrix[p.postaja] = {};
+          odMatrix[p.postaja][dest.postaja] =
+            (odMatrix[p.postaja][dest.postaja] || 0) + vstopili * izstopili / exitAfter;
+        });
+      });
+    });
+
+    const allStops = Object.keys(stopOrder);
+    if (allStops.length === 0) {
+      wrap.innerHTML = '<p style="color:var(--text-secondary);font-size:12px;padding:16px">Ni podatkov o vstopih/izstopih. Preverite, ali so štetniki izpolnjeni.</p>';
+      return;
+    }
+
+    // Sort stops by sequence order
+    allStops.sort((a, b) => (stopOrder[a] || 0) - (stopOrder[b] || 0));
+
+    // Pick top 15 by total flow to keep heatmap readable
+    const flowTotals = {};
+    allStops.forEach(s => {
+      flowTotals[s] = 0;
+      allStops.forEach(t => {
+        flowTotals[s] += (odMatrix[s]?.[t] || 0) + (odMatrix[t]?.[s] || 0);
+      });
+    });
+    const topStops = allStops
+      .filter(s => flowTotals[s] > 0)
+      .sort((a, b) => flowTotals[b] - flowTotals[a])
+      .slice(0, 15)
+      .sort((a, b) => (stopOrder[a] || 0) - (stopOrder[b] || 0));
+
+    if (topStops.length === 0) {
+      wrap.innerHTML = '<p style="color:var(--text-secondary);font-size:12px;padding:16px">Ni podatkov o vstopih/izstopih.</p>';
+      return;
+    }
+
+    let maxVal = 0;
+    topStops.forEach(from => topStops.forEach(to => {
+      maxVal = Math.max(maxVal, odMatrix[from]?.[to] || 0);
+    }));
+
+    const lbl = s => s.length > 13 ? s.slice(0, 12) + '…' : s;
+
+    const cellColor = (val, max) => {
+      if (val === 0) return { bg: '#f5f3ef', fg: 'transparent' };
+      const r = val / max;
+      if (r > 0.7) return { bg: '#d6304a', fg: 'white' };
+      if (r > 0.4) return { bg: '#e8734a', fg: 'white' };
+      if (r > 0.15) return { bg: '#f5c842', fg: '#333' };
+      return { bg: '#c8e6c9', fg: '#333' };
+    };
+
+    let html = '<table style="border-collapse:collapse;font-size:10px">';
+    // Header
+    html += '<thead><tr><th style="padding:4px 8px;text-align:left;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border);white-space:nowrap;font-size:10px">Vstop ↓ / Izstop →</th>';
+    topStops.forEach(to => {
+      html += `<th title="${to}" style="padding:3px;border-bottom:1px solid var(--border)"><div style="writing-mode:vertical-rl;transform:rotate(180deg);height:72px;display:flex;align-items:center;font-size:10px;font-weight:500;color:var(--text-secondary);white-space:nowrap">${lbl(to)}</div></th>`;
+    });
+    html += '</tr></thead><tbody>';
+
+    // Rows
+    topStops.forEach(from => {
+      html += `<tr><td title="${from}" style="padding:4px 8px;font-weight:500;color:var(--text-primary);white-space:nowrap;border-right:1px solid var(--border);font-size:10px">${lbl(from)}</td>`;
+      topStops.forEach(to => {
+        const val = Math.round(odMatrix[from]?.[to] || 0);
+        const { bg, fg } = cellColor(val, maxVal);
+        html += `<td title="${from} → ${to}: ~${val} pot." style="padding:4px 6px;text-align:center;background:${bg};color:${fg};font-weight:600;min-width:28px">${val || ''}</td>`;
+      });
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    if (topStops.length === 15) {
+      html += '<p style="font-size:10px;color:var(--text-secondary);margin-top:6px;padding:0 4px">* Top 15 postaj po pretoku. Filtriraj po liniji za poln prikaz.</p>';
+    }
+    wrap.innerHTML = html;
   }
 
   // ── TABLE ────────────────────────────────────────────────────

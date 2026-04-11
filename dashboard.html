@@ -405,6 +405,25 @@
       </div>
     </div>
 
+    <!-- CHARTS ROW 4: Potniški tokovi -->
+    <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">
+      💡 Za natančen prikaz postajišč po vrstnem redu izberite posamezno linijo v filtru zgoraj.
+    </div>
+    <div class="charts-grid" style="margin-bottom:24px">
+      <div class="chart-card">
+        <div class="chart-title">A — Obremenitev po postajah</div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px">Povp. skupaj potnikov v avtobusu med postajami</div>
+        <div class="chart-wrap tall">
+          <canvas id="chart-load-profile"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">B — OD matrika (vstop × izstop)</div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px">Ocenjena porazdelitev potnikov po relacijah</div>
+        <div id="od-heatmap-wrap" style="overflow:auto;max-height:340px"></div>
+      </div>
+    </div>
+
     <!-- TABLE + EXPORT -->
     <div class="table-card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
