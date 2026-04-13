@@ -174,10 +174,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const v = VOZILA.find(x => x.reg === regVal);
     if (v) {
       STATE.setup.kapaciteta = v.kapaciteta;
-      kapInfo.textContent = `${v.znamka} ${v.tip} — ${v.kapaciteta} potnikov`;
+      STATE.setup.sedezi = v.sedezi;
+      STATE.setup.stojisca = v.stojisca;
+      kapInfo.textContent = `${v.znamka} ${v.tip} — ${v.sedezi}+${v.stojisca}=${v.kapaciteta}`;
       kapInfo.style.display = 'block';
     } else {
       STATE.setup.kapaciteta = 50;
+      STATE.setup.sedezi = 30;
+      STATE.setup.stojisca = 20;
       kapInfo.style.display = 'none';
     }
   }
@@ -296,6 +300,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       showCounters(false);
     }
 
+    // Dejanski odhod — prikaže se ko se vrneš nazaj (po kliku Naprej)
+    const depEl = document.getElementById('stop-actual-dep');
+    if (data.departed_at) {
+      depEl.textContent = APP.formatTime(data.departed_at);
+      depEl.className = 'time-value actual';
+    } else {
+      depEl.textContent = '—';
+      depEl.className = 'time-value placeholder';
+    }
+
     // Counter values
     document.getElementById('cnt-sedeci').textContent    = data.sedeci;
     document.getElementById('cnt-stojeci').textContent   = data.stojeci;
@@ -392,7 +406,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       if (lastIdx >= 0) {
         const prev = STATE.stop_data[lastIdx];
-        const seats = Math.round(STATE.setup.kapaciteta * 0.6);
+        const seats = STATE.setup.sedezi || Math.round(STATE.setup.kapaciteta * 0.6);
         let sedeci  = prev.sedeci;
         let stojeci = prev.stojeci;
         for (let i = 0; i < (prev.vstopili || 0); i++) {
@@ -618,7 +632,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('rv-zacetek').textContent = APP.formatTime(s.ura_zacetek);
     document.getElementById('rv-konec').textContent   = APP.formatTime(s.ura_konec);
     document.getElementById('rv-reg').textContent     = s.reg_st;
-    document.getElementById('rv-kap').textContent     = `${s.kapaciteta} potnikov`;
+    document.getElementById('rv-kap').textContent     = s.sedezi
+      ? `${s.sedezi}+${s.stojisca}=${s.kapaciteta}` : `${s.kapaciteta} potnikov`;
     document.getElementById('rv-vreme').textContent   = s.vreme;
 
     // Avg delay
