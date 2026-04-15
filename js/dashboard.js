@@ -780,6 +780,196 @@ document.addEventListener('DOMContentLoaded', async () => {
     toast('CSV izvožen');
   });
 
+  // ── EXPORT PDF ───────────────────────────────────────────────
+  const KAKOVOST_LBL = [
+    'Vidnost oznake linije','Informacija o plačilu voznine','Informacije o prepovedih',
+    'Sedeži za posebne potrebe','Shema linij','Zvočni signal sledeče postaje',
+    'Svetlobni napis postaje','Spremembe voznega reda','Varna vožnja',
+    'Oznake izstopa','Vidnost imena postaje','Čistoča avtobusa',
+    'Delovanje napovednika','Upoštevanje predpisov',
+  ];
+  const VOZNIK_LBL = ['Prijaznost','Uniforma','Komunikacija','Profesionalnost','Mirna vožnja'];
+  const VOZILO_LBL = ['Zaviranje/Pospeševanje','Tehnično stanje'];
+  const DOSTOP_LBL = ['Kneeling','Vstop enostaven','Invalidska mesta','Izhod označen'];
+
+  function avgByIndex(rows, field, idx) {
+    const vals = rows.map(r => r[field]?.[idx]).filter(v => v !== null && v !== undefined && v > 0);
+    if (!vals.length) return null;
+    return vals.reduce((a,b)=>a+b,0) / vals.length;
+  }
+
+  document.getElementById('btn-export-pdf').addEventListener('click', () => {
+    if (!filteredData.length) { toast('Ni podatkov za izvoz'); return; }
+    if (!window.jspdf?.jsPDF) { toast('PDF knjižnica ni naložena'); return; }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const margin = 15;
+    let y = margin;
+
+    // ── HEADER ────────────────────────────────────────────
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('MESTNA OBČINA MARIBOR', margin, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    y += 4;
+    doc.text('Sektor za komunalo in promet', margin, y);
+    y += 8;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('Poročilo o kontroli JPP', margin, y);
+    y += 8;
+
+    // Filter summary
+    const from = activeFilter.from || '—';
+    const datumi = filteredData.map(r => r.datum).sort();
+    const obdobje = datumi.length ? `${datumi[0]} – ${datumi[datumi.length-1]}` : '—';
+    const filterLinija = activeFilter.linija || 'vse';
+    const filterKontrolor = activeFilter.kontrolor || 'vsi';
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(`Obdobje: ${obdobje}   ·   Linija: ${filterLinija}   ·   Kontrolor: ${filterKontrolor}`, margin, y);
+    y += 4;
+    doc.text(`Generirano: ${new Date().toLocaleString('sl-SI')}   ·   Pripravil: ${window.APP.STATE.kontrolor?.ime || '—'}`, margin, y);
+    y += 8;
+
+    // ── POVZETEK KPI ──────────────────────────────────────
+    const n = filteredData.length;
+    const allDelays = filteredData.flatMap(r => (r.postanki || [])
+      .filter(p => p.zamuda_arr !== null && !p.skip)
+      .map(p => Number(p.zamuda_arr)));
+    const avgDelay = allDelays.length ? (allDelays.reduce((a,b)=>a+b,0)/allDelays.length).toFixed(1) : '—';
+
+    const kScores = filteredData.map(r => avgScore(r.kakovost || [])).filter(v => v !== null);
+    const vnScores = filteredData.map(r => avgScoreAll(r.voznik || [])).filter(v => v !== null);
+    const vzScores = filteredData.map(r => avgScoreAll(r.vozilo || [])).filter(v => v !== null);
+    const dsScores = filteredData.map(r => avgScoreAll(r.dostopnost || [])).filter(v => v !== null);
+    const pct = arr => arr.length ? (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(0) : '—';
+
+    const zasedVals = filteredData.map(r => {
+      const maxP = r.postanki ? Math.max(...r.postanki.map(p => (p.sedeci||0)+(p.stojeci||0)), 0) : 0;
+      return r.kapaciteta ? maxP/r.kapaciteta*100 : null;
+    }).filter(v => v !== null);
+    const avgZased = zasedVals.length ? (zasedVals.reduce((a,b)=>a+b,0)/zasedVals.length).toFixed(0) : '—';
+    const skupVstop = filteredData.reduce((s, r) => s + (r.skupaj_vstopili || (r.postanki ? r.postanki.reduce((ss,p)=>ss+(p.vstopili||0),0) : 0)), 0);
+
+    doc.autoTable({
+      startY: y,
+      head: [['Kazalec', 'Vrednost']],
+      body: [
+        ['Število kontrol', String(n)],
+        ['Povprečna zamuda', `${avgDelay} min`],
+        ['Kakovost informacij', `${pct(kScores)} %`],
+        ['Ocena voznika', `${pct(vnScores)} %`],
+        ['Ocena vožnje', `${pct(vzScores)} %`],
+        ['Dostopnost', `${pct(dsScores)} %`],
+        ['Povp. zasedenost (max/vožnjo)', `${avgZased} %`],
+        ['Skupaj vstopili', String(skupVstop)],
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [60, 60, 70], textColor: 255 },
+      styles: { fontSize: 9 },
+      margin: { left: margin, right: margin },
+    });
+    y = doc.lastAutoTable.finalY + 8;
+
+    // ── PALETA PO VPRAŠANJIH ──────────────────────────────
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('Ocene po vprašanjih (povprečja)', margin, y);
+    y += 2;
+
+    const paletaRows = [];
+    KAKOVOST_LBL.forEach((lbl, i) => {
+      const a = avgByIndex(filteredData, 'kakovost', i);
+      paletaRows.push(['Kakovost', lbl, a !== null ? a.toFixed(2) : '—']);
+    });
+    VOZNIK_LBL.forEach((lbl, i) => {
+      const a = avgByIndex(filteredData, 'voznik', i);
+      paletaRows.push(['Voznik', lbl, a !== null ? a.toFixed(2) : '—']);
+    });
+    VOZILO_LBL.forEach((lbl, i) => {
+      const a = avgByIndex(filteredData, 'vozilo', i);
+      paletaRows.push(['Vožnja', lbl, a !== null ? a.toFixed(2) : '—']);
+    });
+    DOSTOP_LBL.forEach((lbl, i) => {
+      const a = avgByIndex(filteredData, 'dostopnost', i);
+      paletaRows.push(['Dostopnost', lbl, a !== null ? a.toFixed(2) : '—']);
+    });
+
+    doc.autoTable({
+      startY: y + 3,
+      head: [['Kategorija', 'Element', 'Povp. (1–5)']],
+      body: paletaRows,
+      theme: 'striped',
+      headStyles: { fillColor: [60, 60, 70], textColor: 255 },
+      styles: { fontSize: 8 },
+      columnStyles: { 0: { cellWidth: 28 }, 2: { cellWidth: 22, halign: 'right' } },
+      margin: { left: margin, right: margin },
+    });
+    y = doc.lastAutoTable.finalY + 8;
+
+    // ── DETAJL KONTROL ────────────────────────────────────
+    doc.addPage();
+    y = margin;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('Seznam kontrol', margin, y);
+    y += 3;
+
+    const detailRows = filteredData
+      .slice()
+      .sort((a, b) => (b.datum || '').localeCompare(a.datum || ''))
+      .map(r => {
+        const delays = (r.postanki || []).filter(p => p.zamuda_arr !== null && !p.skip).map(p => Number(p.zamuda_arr));
+        const avgD = delays.length ? (delays.reduce((a,b)=>a+b,0)/delays.length).toFixed(1) : '—';
+        const kP = avgScore(r.kakovost || []);
+        const vnP = avgScoreAll(r.voznik || []);
+        const nFoto = (r.foto_urls || []).length;
+        return [
+          r.datum || '',
+          r.linija || '',
+          r.kontrolor || '',
+          r.reg_st || '',
+          `${avgD} min`,
+          kP !== null ? `${kP.toFixed(0)}%` : '—',
+          vnP !== null ? `${vnP.toFixed(0)}%` : '—',
+          nFoto ? String(nFoto) : '—',
+        ];
+      });
+
+    doc.autoTable({
+      startY: y + 3,
+      head: [['Datum','Linija','Kontrolor','Vozilo','Zamuda','Kakovost','Voznik','Foto']],
+      body: detailRows,
+      theme: 'striped',
+      headStyles: { fillColor: [60, 60, 70], textColor: 255 },
+      styles: { fontSize: 8 },
+      margin: { left: margin, right: margin },
+    });
+
+    // ── FOOTER (vse strani) ───────────────────────────────
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(120);
+      doc.text(
+        `Poročilo o kontroli JPP   ·   stran ${i}/${pageCount}`,
+        pageW - margin, doc.internal.pageSize.getHeight() - 8,
+        { align: 'right' }
+      );
+    }
+
+    const dstr = new Date().toISOString().slice(0,10);
+    doc.save(`kontrola_jpp_porocilo_${dstr}.pdf`);
+    toast('PDF izvožen');
+  });
+
   // ── INIT ─────────────────────────────────────────────────────
   document.getElementById('dash-kontrolor').textContent = window.APP.STATE.kontrolor.ime;
 
