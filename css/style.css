@@ -1612,6 +1612,18 @@ body.light {
   justify-content: center;
 }
 .modal-overlay.open { display: flex; }
+.btn-edit-inline {
+  background: transparent;
+  border: 1px solid var(--border, #444);
+  color: var(--text, #fff);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  line-height: 1;
+}
+.btn-edit-inline:active { background: rgba(255,255,255,0.1); }
+.helper-text { font-size: 13px; opacity: 0.75; }
 .confirm-box {
   background: var(--surface, #2a2a3e);
   border-radius: 16px;

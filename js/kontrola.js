@@ -631,7 +631,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('rv-datum').textContent   = APP.nowDate();
     document.getElementById('rv-zacetek').textContent = APP.formatTime(s.ura_zacetek);
     document.getElementById('rv-konec').textContent   = APP.formatTime(s.ura_konec);
-    document.getElementById('rv-reg').textContent     = s.reg_st;
+    document.getElementById('rv-reg-text').textContent = s.reg_st;
     document.getElementById('rv-kap').textContent     = s.sedezi
       ? `${s.sedezi}+${s.stojisca}=${s.kapaciteta}` : `${s.kapaciteta} potnikov`;
     document.getElementById('rv-vreme').textContent   = s.vreme;
@@ -687,6 +687,56 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('btn-back-review').addEventListener('click', () => {
     showScreen('screen-checklist-v');
+  });
+
+  // ── EDIT VEHICLE FROM REVIEW ──────────────────────────────────
+  const editRegModal = document.getElementById('edit-reg-modal');
+  const editRegSelect = document.getElementById('edit-reg-select');
+  const editRegKap = document.getElementById('edit-reg-kap');
+
+  VOZILA.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v.reg;
+    opt.textContent = `${v.reg} — ${v.znamka} ${v.tip}`;
+    editRegSelect.appendChild(opt);
+  });
+
+  function updateEditRegKap(reg) {
+    const v = VOZILA.find(x => x.reg === reg);
+    editRegKap.textContent = v
+      ? `${v.znamka} ${v.tip} — ${v.sedezi}+${v.stojisca}=${v.kapaciteta}`
+      : '';
+  }
+
+  editRegSelect.addEventListener('change', () => updateEditRegKap(editRegSelect.value));
+
+  document.getElementById('btn-edit-reg').addEventListener('click', () => {
+    editRegSelect.value = STATE.setup.reg_st || '';
+    updateEditRegKap(editRegSelect.value);
+    editRegModal.classList.add('open');
+  });
+
+  document.getElementById('edit-reg-cancel').addEventListener('click', () => {
+    editRegModal.classList.remove('open');
+  });
+
+  document.getElementById('edit-reg-save').addEventListener('click', () => {
+    const reg = editRegSelect.value;
+    if (!reg) {
+      toast('⚠ Izberi vozilo');
+      return;
+    }
+    const v = VOZILA.find(x => x.reg === reg);
+    STATE.setup.reg_st = reg;
+    if (v) {
+      STATE.setup.kapaciteta = v.kapaciteta;
+      STATE.setup.sedezi = v.sedezi;
+      STATE.setup.stojisca = v.stojisca;
+    }
+    saveState();
+    editRegModal.classList.remove('open');
+    renderReview();
+    toast('✅ Vozilo spremenjeno');
   });
 
   document.getElementById('btn-submit').addEventListener('click', async () => {

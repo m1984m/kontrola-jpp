@@ -272,7 +272,13 @@
         <div class="review-row"><span>Datum</span><strong id="rv-datum">—</strong></div>
         <div class="review-row"><span>Začetek</span><strong id="rv-zacetek">—</strong></div>
         <div class="review-row"><span>Konec</span><strong id="rv-konec">—</strong></div>
-        <div class="review-row"><span>Vozilo</span><strong id="rv-reg">—</strong></div>
+        <div class="review-row">
+          <span>Vozilo</span>
+          <strong id="rv-reg" style="display:flex;align-items:center;gap:8px">
+            <span id="rv-reg-text">—</span>
+            <button type="button" id="btn-edit-reg" class="btn-edit-inline" aria-label="Spremeni vozilo">✎</button>
+          </strong>
+        </div>
         <div class="review-row"><span>Kapaciteta</span><strong id="rv-kap">—</strong></div>
         <div class="review-row"><span>Vreme</span><strong id="rv-vreme">—</strong></div>
         <div class="review-row"><span>Povp. zamuda</span><strong id="rv-zamuda">—</strong></div>
@@ -303,6 +309,19 @@
       <div class="bottom-actions two-col">
         <button class="btn-secondary" id="btn-back-review">◀ Nazaj</button>
         <button class="btn-submit" id="btn-submit">✓ Potrdi in pošlji</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit vehicle modal -->
+  <div class="modal-overlay" id="edit-reg-modal">
+    <div class="confirm-box">
+      <p style="margin:0 0 10px 0"><strong>Spremeni vozilo</strong></p>
+      <select id="edit-reg-select" class="input-field" style="width:100%"></select>
+      <div id="edit-reg-kap" class="helper-text" style="margin-top:8px"></div>
+      <div class="confirm-btns" style="margin-top:14px">
+        <button class="btn-secondary" id="edit-reg-cancel">Prekliči</button>
+        <button class="btn-primary" id="edit-reg-save">Shrani</button>
       </div>
     </div>
   </div>
