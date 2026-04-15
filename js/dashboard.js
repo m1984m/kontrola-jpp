@@ -802,6 +802,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let pdfFontsLoaded = false;
   async function fetchFontBase64(url, onProgress) {
     const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} za ${url}`);
     const total = Number(resp.headers.get('Content-Length')) || 0;
     const reader = resp.body.getReader();
     const chunks = [];
@@ -821,8 +822,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     return btoa(bin);
   }
   async function ensurePdfFonts(doc, setStatus) {
-    const ROBOTO_REG = 'https://cdn.jsdelivr.net/npm/roboto-fontface@0.10.0/fonts/roboto/Roboto-Regular.ttf';
-    const ROBOTO_BOLD = 'https://cdn.jsdelivr.net/npm/roboto-fontface@0.10.0/fonts/roboto/Roboto-Bold.ttf';
+    const ROBOTO_REG = 'https://cdn.jsdelivr.net/npm/@expo-google-fonts/roboto@0.2.3/Roboto_400Regular.ttf';
+    const ROBOTO_BOLD = 'https://cdn.jsdelivr.net/npm/@expo-google-fonts/roboto@0.2.3/Roboto_700Bold.ttf';
     if (!pdfFontsLoaded) {
       setStatus('Prenašam font 1/2...', 0);
       const t0 = Date.now();
