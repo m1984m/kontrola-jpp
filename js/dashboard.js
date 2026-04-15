@@ -869,26 +869,66 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
   }
 
-  document.getElementById('btn-export-pdf').addEventListener('click', async () => {
-    if (!filteredData.length) { toast('Ni podatkov za izvoz'); return; }
-    if (!window.jspdf?.jsPDF) { toast('PDF knjižnica ni naložena'); return; }
+  function loadScript(url) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = url;
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('load fail: ' + url));
+      document.head.appendChild(s);
+    });
+  }
 
-    const btn = document.getElementById('btn-export-pdf');
+  async function ensureJsPdf(setStatus) {
+    if (window.jspdf?.jsPDF && window.jspdf?.jsPDF?.API?.autoTable) return;
+    if (!window.jspdf?.jsPDF) {
+      setStatus('Nalagam jsPDF...', 2);
+      await loadScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
+    }
+    if (!window.jspdf?.jsPDF?.API?.autoTable) {
+      setStatus('Nalagam autoTable...', 4);
+      await loadScript('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js');
+    }
+  }
+
+  const pdfBtn = document.getElementById('btn-export-pdf');
+  if (!pdfBtn) {
+    console.error('PDF gumb ni v DOM-u (btn-export-pdf)');
+  } else {
+    pdfBtn.addEventListener('click', async () => {
+    console.log('[PDF] klik');
+    if (!filteredData.length) { toast('Ni podatkov za izvoz'); return; }
+
+    const btn = pdfBtn;
     btn.disabled = true;
     const overlay = showPdfOverlay();
-    overlay.set(pdfFontsLoaded ? 'Generiram PDF...' : 'Pripravljam PDF (prvi klic: prenos fonta ~400 KB)...', pdfFontsLoaded ? 80 : 5);
+    overlay.set('Pripravljam PDF...', 1);
+
+    try {
+      await ensureJsPdf(overlay.set);
+    } catch (err) {
+      console.error(err);
+      overlay.hide();
+      btn.disabled = false;
+      toast('⚠ jsPDF ni dosegljiv: ' + err.message);
+      return;
+    }
+
+    overlay.set(pdfFontsLoaded ? 'Generiram PDF...' : 'Prenašam font (prvi klic, ~400 KB)...', pdfFontsLoaded ? 80 : 5);
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
     try {
       await ensurePdfFonts(doc, overlay.set);
     } catch (err) {
+      console.error(err);
       overlay.hide();
       btn.disabled = false;
       toast('⚠ Font ni dosegljiv — preveri povezavo');
       return;
     }
     overlay.set('Sestavljam strani...', 90);
+    try {
     const pageW = doc.internal.pageSize.getWidth();
     const margin = 15;
     let y = margin;
@@ -1057,7 +1097,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     overlay.hide();
     btn.disabled = false;
     toast('PDF izvožen');
-  });
+    } catch (err) {
+      console.error(err);
+      overlay.hide();
+      btn.disabled = false;
+      toast('⚠ Napaka pri PDF: ' + err.message);
+    }
+    });
+  }
 
   // ── INIT ─────────────────────────────────────────────────────
   document.getElementById('dash-kontrolor').textContent = window.APP.STATE.kontrolor.ime;
