@@ -798,27 +798,59 @@ document.addEventListener('DOMContentLoaded', async () => {
     return vals.reduce((a,b)=>a+b,0) / vals.length;
   }
 
-  document.getElementById('btn-export-pdf').addEventListener('click', () => {
+  // Font cache (UTF-8 support za šumnike)
+  let pdfFontsLoaded = false;
+  async function fetchFontBase64(url) {
+    const resp = await fetch(url);
+    const buf = await resp.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  async function ensurePdfFonts(doc) {
+    const ROBOTO_REG = 'https://cdn.jsdelivr.net/npm/roboto-fontface@0.10.0/fonts/roboto/Roboto-Regular.ttf';
+    const ROBOTO_BOLD = 'https://cdn.jsdelivr.net/npm/roboto-fontface@0.10.0/fonts/roboto/Roboto-Bold.ttf';
+    if (!pdfFontsLoaded) {
+      const [reg, bold] = await Promise.all([fetchFontBase64(ROBOTO_REG), fetchFontBase64(ROBOTO_BOLD)]);
+      window._pdfFontReg = reg;
+      window._pdfFontBold = bold;
+      pdfFontsLoaded = true;
+    }
+    doc.addFileToVFS('Roboto-Regular.ttf', window._pdfFontReg);
+    doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
+    doc.addFileToVFS('Roboto-Bold.ttf', window._pdfFontBold);
+    doc.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
+    doc.setFont('Roboto', 'normal');
+  }
+
+  document.getElementById('btn-export-pdf').addEventListener('click', async () => {
     if (!filteredData.length) { toast('Ni podatkov za izvoz'); return; }
     if (!window.jspdf?.jsPDF) { toast('PDF knjižnica ni naložena'); return; }
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    try {
+      await ensurePdfFonts(doc);
+    } catch {
+      toast('⚠ Font za šumnike ni naložen (preveri povezavo)');
+      // Nadaljujemo — šumniki bodo pokvarjeni a PDF vseeno nastane
+    }
     const pageW = doc.internal.pageSize.getWidth();
     const margin = 15;
     let y = margin;
 
     // ── HEADER ────────────────────────────────────────────
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('Roboto', 'bold');
     doc.setFontSize(10);
     doc.text('MESTNA OBČINA MARIBOR', margin, y);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('Roboto', 'normal');
     doc.setFontSize(9);
     y += 4;
     doc.text('Sektor za komunalo in promet', margin, y);
     y += 8;
 
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('Roboto', 'bold');
     doc.setFontSize(16);
     doc.text('Poročilo o kontroli JPP', margin, y);
     y += 8;
@@ -830,7 +862,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const filterLinija = activeFilter.linija || 'vse';
     const filterKontrolor = activeFilter.kontrolor || 'vsi';
 
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('Roboto', 'normal');
     doc.setFontSize(9);
     doc.text(`Obdobje: ${obdobje}   ·   Linija: ${filterLinija}   ·   Kontrolor: ${filterKontrolor}`, margin, y);
     y += 4;
@@ -871,14 +903,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         ['Skupaj vstopili', String(skupVstop)],
       ],
       theme: 'grid',
-      headStyles: { fillColor: [60, 60, 70], textColor: 255 },
-      styles: { fontSize: 9 },
+      headStyles: { fillColor: [60, 60, 70], textColor: 255, font: 'Roboto', fontStyle: 'bold' },
+      styles: { fontSize: 9, font: 'Roboto' },
       margin: { left: margin, right: margin },
     });
     y = doc.lastAutoTable.finalY + 8;
 
     // ── PALETA PO VPRAŠANJIH ──────────────────────────────
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('Roboto', 'bold');
     doc.setFontSize(11);
     doc.text('Ocene po vprašanjih (povprečja)', margin, y);
     y += 2;
@@ -906,8 +938,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       head: [['Kategorija', 'Element', 'Povp. (1–5)']],
       body: paletaRows,
       theme: 'striped',
-      headStyles: { fillColor: [60, 60, 70], textColor: 255 },
-      styles: { fontSize: 8 },
+      headStyles: { fillColor: [60, 60, 70], textColor: 255, font: 'Roboto', fontStyle: 'bold' },
+      styles: { fontSize: 8, font: 'Roboto' },
       columnStyles: { 0: { cellWidth: 28 }, 2: { cellWidth: 22, halign: 'right' } },
       margin: { left: margin, right: margin },
     });
@@ -916,7 +948,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ── DETAJL KONTROL ────────────────────────────────────
     doc.addPage();
     y = margin;
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('Roboto', 'bold');
     doc.setFontSize(11);
     doc.text('Seznam kontrol', margin, y);
     y += 3;
@@ -947,8 +979,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       head: [['Datum','Linija','Kontrolor','Vozilo','Zamuda','Kakovost','Voznik','Foto']],
       body: detailRows,
       theme: 'striped',
-      headStyles: { fillColor: [60, 60, 70], textColor: 255 },
-      styles: { fontSize: 8 },
+      headStyles: { fillColor: [60, 60, 70], textColor: 255, font: 'Roboto', fontStyle: 'bold' },
+      styles: { fontSize: 8, font: 'Roboto' },
       margin: { left: margin, right: margin },
     });
 
@@ -956,6 +988,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
+      doc.setFont('Roboto', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(120);
       doc.text(
