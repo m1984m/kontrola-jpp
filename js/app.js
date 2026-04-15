@@ -64,6 +64,7 @@ function clearState() {
   STATE.vozilo = new Array(2).fill(null);
   STATE.dostopnost = new Array(4).fill(null);
   STATE.opombe = '';
+  STATE.photos = [];
   STATE.setup = {
     route_id: null, route_short: null, trip_id: null,
     headsign: null, reg_st: '', kapaciteta: 50,

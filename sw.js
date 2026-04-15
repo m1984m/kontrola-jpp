@@ -1,4 +1,4 @@
-const CACHE = 'jpp-v3';
+const CACHE = 'jpp-v4';
 const STATIC = [
   './', './index.html', './app.html', './dashboard.html',
   './css/style.css',

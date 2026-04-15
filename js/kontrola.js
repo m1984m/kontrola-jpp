@@ -615,6 +615,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     renderReview();
+    renderPhotoGrid();
     showScreen('screen-review');
   });
   document.getElementById('btn-back-vozilo').addEventListener('click', () => {
@@ -787,6 +788,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       dostopnost: STATE.dostopnost,
       opombe: STATE.opombe,
       skupaj_vstopili: STATE.stop_data.reduce((s, d) => s + (d.vstopili || 0), 0),
+      photos: (STATE.photos || []).map((dataUrl, i) => ({
+        idx: i + 1,
+        mime: 'image/jpeg',
+        b64: dataUrl.replace(/^data:image\/jpeg;base64,/, ''),
+      })),
       postanki: STATE.stops.map((stop, i) => {
         const d = STATE.stop_data[i];
         return {
@@ -807,6 +813,84 @@ document.addEventListener('DOMContentLoaded', async () => {
       }),
     };
   }
+
+  // ── PHOTOS ───────────────────────────────────────────────────
+  // In-memory only (not persisted to localStorage — base64 blobs would blow quota).
+  if (!STATE.photos) STATE.photos = [];
+
+  const photoInput = document.getElementById('photo-input');
+  const photoGrid = document.getElementById('photo-grid');
+  const photoInfo = document.getElementById('photo-info');
+  const MAX_WIDTH = 1200;
+  const JPEG_QUALITY = 0.5;
+
+  function compressImage(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Branje slike ni uspelo'));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Slika ni veljavna'));
+        img.onload = () => {
+          const scale = Math.min(1, MAX_WIDTH / img.width);
+          const w = Math.round(img.width * scale);
+          const h = Math.round(img.height * scale);
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', JPEG_QUALITY));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function updatePhotoInfo() {
+    const n = STATE.photos.length;
+    if (n === 0) { photoInfo.textContent = ''; return; }
+    const totalKB = STATE.photos.reduce((s, p) => s + Math.round(p.length * 0.75 / 1024), 0);
+    photoInfo.textContent = `${n} slika${n === 1 ? '' : n < 5 ? 'e' : ''} · ~${totalKB} KB`;
+  }
+
+  function renderPhotoGrid() {
+    photoGrid.innerHTML = '';
+    STATE.photos.forEach((dataUrl, i) => {
+      const tile = document.createElement('div');
+      tile.className = 'photo-tile';
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'photo-remove';
+      rm.textContent = '×';
+      rm.setAttribute('aria-label', 'Odstrani fotografijo');
+      rm.addEventListener('click', () => {
+        STATE.photos.splice(i, 1);
+        renderPhotoGrid();
+        updatePhotoInfo();
+      });
+      tile.appendChild(img);
+      tile.appendChild(rm);
+      photoGrid.appendChild(tile);
+    });
+    updatePhotoInfo();
+  }
+
+  photoInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    for (const f of files) {
+      try {
+        const dataUrl = await compressImage(f);
+        STATE.photos.push(dataUrl);
+      } catch (err) {
+        toast(`⚠ ${f.name}: ${err.message}`);
+      }
+    }
+    photoInput.value = '';
+    renderPhotoGrid();
+  });
 
   // ── OPOMBE ───────────────────────────────────────────────────
   document.getElementById('inp-opombe').addEventListener('input', (e) => {
