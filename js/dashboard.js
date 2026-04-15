@@ -800,19 +800,41 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Font cache (UTF-8 support za šumnike)
   let pdfFontsLoaded = false;
-  async function fetchFontBase64(url) {
+  async function fetchFontBase64(url, onProgress) {
     const resp = await fetch(url);
-    const buf = await resp.arrayBuffer();
-    const bytes = new Uint8Array(buf);
+    const total = Number(resp.headers.get('Content-Length')) || 0;
+    const reader = resp.body.getReader();
+    const chunks = [];
+    let received = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.length;
+      if (onProgress) onProgress(received, total);
+    }
+    const bytes = new Uint8Array(received);
+    let pos = 0;
+    for (const c of chunks) { bytes.set(c, pos); pos += c.length; }
     let bin = '';
     for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
     return btoa(bin);
   }
-  async function ensurePdfFonts(doc) {
+  async function ensurePdfFonts(doc, setStatus) {
     const ROBOTO_REG = 'https://cdn.jsdelivr.net/npm/roboto-fontface@0.10.0/fonts/roboto/Roboto-Regular.ttf';
     const ROBOTO_BOLD = 'https://cdn.jsdelivr.net/npm/roboto-fontface@0.10.0/fonts/roboto/Roboto-Bold.ttf';
     if (!pdfFontsLoaded) {
-      const [reg, bold] = await Promise.all([fetchFontBase64(ROBOTO_REG), fetchFontBase64(ROBOTO_BOLD)]);
+      setStatus('Prenašam font 1/2...', 0);
+      const t0 = Date.now();
+      const reg = await fetchFontBase64(ROBOTO_REG, (r, tot) => {
+        const pct = tot ? Math.round(r / tot * 50) : 0;
+        setStatus('Prenašam font 1/2...', pct);
+      });
+      setStatus('Prenašam font 2/2...', 50);
+      const bold = await fetchFontBase64(ROBOTO_BOLD, (r, tot) => {
+        const pct = tot ? 50 + Math.round(r / tot * 50) : 50;
+        setStatus('Prenašam font 2/2...', pct);
+      });
       window._pdfFontReg = reg;
       window._pdfFontBold = bold;
       pdfFontsLoaded = true;
@@ -824,18 +846,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     doc.setFont('Roboto', 'normal');
   }
 
+  function showPdfOverlay() {
+    let el = document.getElementById('pdf-overlay');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'pdf-overlay';
+      el.innerHTML = `
+        <div class="pdf-overlay-box">
+          <div class="pdf-spinner"></div>
+          <div id="pdf-status" class="pdf-status">Pripravljam PDF...</div>
+          <div class="pdf-progress-track"><div id="pdf-progress-bar" class="pdf-progress-bar"></div></div>
+        </div>`;
+      document.body.appendChild(el);
+    }
+    el.style.display = 'flex';
+    return {
+      set: (msg, pct) => {
+        document.getElementById('pdf-status').textContent = msg;
+        document.getElementById('pdf-progress-bar').style.width = `${Math.max(0, Math.min(100, pct || 0))}%`;
+      },
+      hide: () => { el.style.display = 'none'; },
+    };
+  }
+
   document.getElementById('btn-export-pdf').addEventListener('click', async () => {
     if (!filteredData.length) { toast('Ni podatkov za izvoz'); return; }
     if (!window.jspdf?.jsPDF) { toast('PDF knjižnica ni naložena'); return; }
 
+    const btn = document.getElementById('btn-export-pdf');
+    btn.disabled = true;
+    const overlay = showPdfOverlay();
+    overlay.set(pdfFontsLoaded ? 'Generiram PDF...' : 'Pripravljam PDF (prvi klic: prenos fonta ~400 KB)...', pdfFontsLoaded ? 80 : 5);
+
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
     try {
-      await ensurePdfFonts(doc);
-    } catch {
-      toast('⚠ Font za šumnike ni naložen (preveri povezavo)');
-      // Nadaljujemo — šumniki bodo pokvarjeni a PDF vseeno nastane
+      await ensurePdfFonts(doc, overlay.set);
+    } catch (err) {
+      overlay.hide();
+      btn.disabled = false;
+      toast('⚠ Font ni dosegljiv — preveri povezavo');
+      return;
     }
+    overlay.set('Sestavljam strani...', 90);
     const pageW = doc.internal.pageSize.getWidth();
     const margin = 15;
     let y = margin;
@@ -998,8 +1051,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       );
     }
 
+    overlay.set('Shranjujem...', 100);
     const dstr = new Date().toISOString().slice(0,10);
     doc.save(`kontrola_jpp_porocilo_${dstr}.pdf`);
+    overlay.hide();
+    btn.disabled = false;
     toast('PDF izvožen');
   });
 
